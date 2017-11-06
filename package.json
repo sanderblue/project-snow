@@ -16,11 +16,13 @@
   "dependencies": {
     "csvtojson": "^1.1.9",
     "lodash": "^4.17.4",
-    "moment": "^2.19.1"
+    "moment": "^2.19.1",
+    "mongodb": "^2.2.33"
   },
   "devDependencies": {
     "@types/csvtojson": "^1.1.4",
     "@types/lodash": "^4.14.79",
+    "@types/mongodb": "^2.2.15",
     "@types/node": "^8.0.46",
     "@types/prettyjson": "0.0.28",
     "prettyjson": "^1.2.1",

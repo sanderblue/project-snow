@@ -3,6 +3,7 @@ import * as csv from 'csvtojson';
 import * as prettyjson from 'prettyjson';
 import * as moment from 'moment';
 import * as _ from 'lodash';
+import * as mongodb from 'mongodb';
 
 import JsonFileCreator from './modules/csv-to-json-file';
 import DataManager from './modules/data-manager';
@@ -31,6 +32,8 @@ const snowDepth_2017_2018:object = {
   file: './data/csv/mt-hood_snow_depth.2017-2018.csv'
 }
 
+const CONNECTION_URL = '';
+
 Promise.all([
   convertCsvToJson(snowDepth_2014_2015),
   convertCsvToJson(snowDepth_2015_2016),
@@ -38,16 +41,55 @@ Promise.all([
   convertCsvToJson(snowDepth_2017_2018),
 ])
 .then(data => {
-  console.log('Promises Complete - data:', data);
+  console.log('DATA:', data);
 
-  data.forEach((dataItem) => {
-    _.forIn(dataItem, (item, key) => {
-      jsonFileCreator.writeToFile(item.file, item.data, 'utf8', () => {
-        console.log('Successfully wrote data to file with name: ', path.basename(item.file));
-      });
+  let promises: Array<any> = [];
+
+  mongodb.MongoClient.connect(CONNECTION_URL, (err: Error, db: any) => {
+    if (err) {
+      console.log('ERROR!', err);
+      console.log(`Closing connection to ${CONNECTION_URL}.`);
+
+      return;
+    }
+
+    data.forEach((dataItem) => {
+      _.forIn(dataItem, (item, key) => {
+        promises.push(
+          db.collection('daily_snow_depth_observations')
+            .insertMany(item.dailyData)
+            .then((result: any) => {
+              console.log('Succesfully added data to the daily_snow_depth_observations collection.');
+
+              jsonFileCreator.writeToFile(item.file, item.dailyData, 'utf8', () => {});
+            }
+          )
+        );
+      })
     });
-  });
 
+    data.forEach((dataItem) => {
+      _.forIn(dataItem, (item, key) => {
+        promises.push(
+          db.collection('hourly_snow_depth_observations')
+            .insertMany(item.hourlyData)
+            .then((result: any) => {
+              console.log('Succesfully added data to the hourly_snow_depth_observations collection.');
+            }
+          )
+        );
+      })
+    });
+
+    Promise.all(promises)
+      .then(() => {
+        console.log('Done adding items to database. Closing connection.');
+        console.log('');
+
+        db.close();
+      }
+    );
+  });
 });
 
 let totalObservationCount = 0;
@@ -69,10 +111,6 @@ function extractLocationNameFromKey(key: string): string {
 
 function convertCsvToJson(fileObj: any) {
   let observationsData: HourlySnowDepthObservationInterface[] = [];
-
-  // let meadowsObservationsData: HourlySnowDepthObservationInterface[] = [];
-  // let timberlineObservationsData: HourlySnowDepthObservationInterface[] = [];
-  // let skibowlObservationsData: HourlySnowDepthObservationInterface[] = [];
 
   return new Promise((resolve, reject) => {
     csv()
@@ -136,15 +174,18 @@ function convertCsvToJson(fileObj: any) {
 
         return resolve({
           meadows: {
-            data: meadowsDailyObservationData,
+            hourlyData: meadowsData,
+            dailyData: meadowsDailyObservationData,
             file: meadowsFileName,
           },
           timberline: {
-            data: timberlineDailyObservationData,
+            hourlyData: timberlineData,
+            dailyData: timberlineDailyObservationData,
             file: timberlineFileName,
           },
           skiBowl: {
-            data: skiBowlDailyObservationData,
+            hourlyData: skibowlData,
+            dailyData: skiBowlDailyObservationData,
             file: skiBowlFileName,
           },
         });
