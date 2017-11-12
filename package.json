@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "consume": "node ./dist/consumer/index.js",
     "convert": "node ./dist/index.js",
     "extract": "node ./dist/modules/extract.js",
     "build": "tsc",
@@ -17,7 +18,8 @@
     "csvtojson": "^1.1.9",
     "lodash": "^4.17.4",
     "moment": "^2.19.1",
-    "mongodb": "^2.2.33"
+    "mongodb": "^2.2.33",
+    "yargs": "^10.0.3"
   },
   "devDependencies": {
     "@types/csvtojson": "^1.1.4",
@@ -25,6 +27,7 @@
     "@types/mongodb": "^2.2.15",
     "@types/node": "^8.0.46",
     "@types/prettyjson": "0.0.28",
+    "@types/yargs": "^8.0.2",
     "prettyjson": "^1.2.1",
     "tslint": "^5.8.0",
     "typescript": "^2.5.3"

@@ -89,4 +89,16 @@ export default class DataManager {
 
     return Math.sqrt(avgVariance);
   }
+
+  public isDateTimeKey(key: string): boolean {
+    return key.indexOf('Date/Time') !== -1;
+  }
+
+  public extractElevationFromKey(key: string): string {
+    return key.replace(/\D+/g, '');
+  }
+
+  public extractLocationNameFromKey(key: string): string {
+    return key.replace(/[^a-z]/gi, '');
+  }
 };

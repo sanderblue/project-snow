@@ -32,64 +32,72 @@ const snowDepth_2017_2018:object = {
   file: './data/csv/mt-hood_snow_depth.2017-2018.csv'
 }
 
-const CONNECTION_URL = '';
+const CONNECTION_URL = 'mongodb://sblue:ibmchinccd@sanderblue.com:27017,sanderblue.com:27017/snow';
 
 Promise.all([
-  convertCsvToJson(snowDepth_2014_2015),
-  convertCsvToJson(snowDepth_2015_2016),
-  convertCsvToJson(snowDepth_2016_2017),
+  // convertCsvToJson(snowDepth_2014_2015),
+  // convertCsvToJson(snowDepth_2015_2016),
+  // convertCsvToJson(snowDepth_2016_2017),
   convertCsvToJson(snowDepth_2017_2018),
 ])
 .then(data => {
   console.log('DATA:', data);
 
-  let promises: Array<any> = [];
+  // data.forEach((dataItem) => {
+  //   console.log('DataItem', dataItem);
 
-  mongodb.MongoClient.connect(CONNECTION_URL, (err: Error, db: any) => {
-    if (err) {
-      console.log('ERROR!', err);
-      console.log(`Closing connection to ${CONNECTION_URL}.`);
+  //   _.forIn(dataItem, (item, key) => {
+  //     jsonFileCreator.writeToFile(item.file, item.dailyData, 'utf8', () => {});
+  //   });
+  // });
 
-      return;
-    }
+  // let promises: Array<any> = [];
 
-    data.forEach((dataItem) => {
-      _.forIn(dataItem, (item, key) => {
-        promises.push(
-          db.collection('daily_snow_depth_observations')
-            .insertMany(item.dailyData)
-            .then((result: any) => {
-              console.log('Succesfully added data to the daily_snow_depth_observations collection.');
+  // mongodb.MongoClient.connect(CONNECTION_URL, (err: Error, db: any) => {
+  //   if (err) {
+  //     console.log('ERROR!', err);
+  //     console.log(`Closing connection to ${CONNECTION_URL}.`);
 
-              jsonFileCreator.writeToFile(item.file, item.dailyData, 'utf8', () => {});
-            }
-          )
-        );
-      })
-    });
+  //     return;
+  //   }
 
-    data.forEach((dataItem) => {
-      _.forIn(dataItem, (item, key) => {
-        promises.push(
-          db.collection('hourly_snow_depth_observations')
-            .insertMany(item.hourlyData)
-            .then((result: any) => {
-              console.log('Succesfully added data to the hourly_snow_depth_observations collection.');
-            }
-          )
-        );
-      })
-    });
+  //   data.forEach((dataItem) => {
+  //     _.forIn(dataItem, (item, key) => {
+  //       promises.push(
+  //         db.collection('daily_snow_depth_observations')
+  //           .insertMany(item.dailyData)
+  //           .then((result: any) => {
+  //             console.log('Succesfully added data to the daily_snow_depth_observations collection.');
 
-    Promise.all(promises)
-      .then(() => {
-        console.log('Done adding items to database. Closing connection.');
-        console.log('');
+  //             jsonFileCreator.writeToFile(item.file, item.dailyData, 'utf8', () => {});
+  //           }
+  //         )
+  //       );
+  //     })
+  //   });
 
-        db.close();
-      }
-    );
-  });
+  //   data.forEach((dataItem) => {
+  //     _.forIn(dataItem, (item, key) => {
+  //       promises.push(
+  //         db.collection('hourly_snow_depth_observations')
+  //           .insertMany(item.hourlyData)
+  //           .then((result: any) => {
+  //             console.log('Succesfully added data to the hourly_snow_depth_observations collection.');
+  //           }
+  //         )
+  //       );
+  //     })
+  //   });
+
+  //   Promise.all(promises)
+  //     .then(() => {
+  //       console.log('Done adding items to database. Closing connection.');
+  //       console.log('');
+
+  //       db.close();
+  //     }
+  //   );
+  // });
 });
 
 let totalObservationCount = 0;
@@ -163,6 +171,19 @@ function convertCsvToJson(fileObj: any) {
         let skibowlData = _.filter(observationsData, (o: HourlySnowDepthObservationInterface) => {
           return o.location === 'SkiBowlSummit';
         });
+
+
+        // let allDailyObsercationData = dataManager.computeDailyData(observationsData);
+        // let allDailyDataFileName = path.resolve(`/Users/m28099/Sites/projects/know-your-snow/static/data/all/dailyObservations.json`);
+
+        // return resolve({
+        //   allData: {
+        //     hourlyData: observationsData,
+        //     dailyData: allDailyObsercationData,
+        //     file: allDailyDataFileName,
+        //   },
+        // });
+
 
         let meadowsDailyObservationData = dataManager.normalizeData(meadowsData, 'MtHoodMeadowsBase');
         let timberlineDailyObservationData = dataManager.normalizeData(timberlineData, 'TimberlineLodge');
