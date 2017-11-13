@@ -1,2 +1,2 @@
-export * from './hourly-snow-depth-observation-interface';
-export * from './daily-snow-depth-observation-interface';
+export * from './hourly-snow-depth-observation';
+export * from './daily-snow-depth-observation';

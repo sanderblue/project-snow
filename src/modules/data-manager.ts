@@ -1,18 +1,43 @@
 import * as _ from 'lodash';
-import HourlySnowDepthObservationInterface from '../models/hourly-snow-depth-observation-interface';
-import DailySnowDepthObservationInterface from '../models/daily-snow-depth-observation-interface';
+import HourlySnowDepthObservation from '../models/hourly-snow-depth-observation';
+import DailySnowDepthObservation from '../models/daily-snow-depth-observation';
 
 let count = 0;
 
 export default class DataManager {
   constructor() {}
 
+  public aggregateDailySnowDepthData(data: any) {
+    let aggregatedData: DailySnowDepthObservation[];
+    let groupedByDate = _.groupBy(data, 'date');
+
+    // console.log('groupedByDate', groupedByDate);
+
+    return _.map(groupedByDate, (groupedData: Array<HourlySnowDepthObservation>, date: string) => {
+      let hourlyObservations = this.mapHourlyObservations(groupedData);
+      let hourlyObservationValues: Array<number> = _.map(hourlyObservations, 'snowDepth');
+      let accurateHourlyValues = this.getAccurateHourlyObservationData(hourlyObservationValues);
+      let average: any = _.mean(accurateHourlyValues);
+
+      // console.log('_.head(hourlyObservations).location', _.head(hourlyObservations).location);
+
+      return {
+        timestamp: new Date(date).getTime(),
+        date: date,
+        location: _.head(hourlyObservations).location,
+        elevation: _.head(groupedData).elevation,
+        averageSnowDepthForDate: _.toNumber(average.toFixed(2)),
+        hourlyObservations: accurateHourlyValues,
+      };
+    });
+  }
+
   public normalizeData(
-    data: Array<HourlySnowDepthObservationInterface>,
+    data: Array<HourlySnowDepthObservation>,
     location: string
   ): any {
 
-    let dailyObservationData: DailySnowDepthObservationInterface[];
+    let dailyObservationData: DailySnowDepthObservation[];
 
     // {
     //   timestamp
@@ -24,7 +49,7 @@ export default class DataManager {
 
     let groupedByDate = _.groupBy(data, 'date');
 
-    return _.map(groupedByDate, (groupedData: Array<HourlySnowDepthObservationInterface>, date: string) => {
+    return _.map(groupedByDate, (groupedData: Array<HourlySnowDepthObservation>, date: string) => {
       let hourlyObservations = this.mapHourlyObservations(groupedData);
       let hourlyObservationValues: Array<number> = _.map(hourlyObservations, 'snowDepth');
       let accurateHourlyValues = this.getAccurateHourlyObservationData(hourlyObservationValues);
@@ -71,7 +96,8 @@ export default class DataManager {
 
       return {
         timestamp: obj.timestamp,
-        snowDepth: snowDepth > 0 ? _.toNumber(snowDepth.toFixed(3)) : 0
+        snowDepth: snowDepth > 0 ? _.toNumber(snowDepth.toFixed(3)) : 0,
+        location: obj.location,
       }
     });
   }

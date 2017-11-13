@@ -7,7 +7,7 @@ import * as mongodb from 'mongodb';
 
 import JsonFileCreator from './modules/csv-to-json-file';
 import DataManager from './modules/data-manager';
-import HourlySnowDepthObservationInterface from './models/hourly-snow-depth-observation-interface';
+import HourlySnowDepthObservation from './models/hourly-snow-depth-observation';
 
 const dataManager = new DataManager();
 const jsonFileCreator = new JsonFileCreator();
@@ -118,7 +118,7 @@ function extractLocationNameFromKey(key: string): string {
 }
 
 function convertCsvToJson(fileObj: any) {
-  let observationsData: HourlySnowDepthObservationInterface[] = [];
+  let observationsData: HourlySnowDepthObservation[] = [];
 
   return new Promise((resolve, reject) => {
     csv()
@@ -160,15 +160,15 @@ function convertCsvToJson(fileObj: any) {
       .on('done', (error: any) => {
         // console.log('Finished:', observationsData);
 
-        let meadowsData = _.filter(observationsData, (o: HourlySnowDepthObservationInterface) => {
+        let meadowsData = _.filter(observationsData, (o: HourlySnowDepthObservation) => {
           return o.location === 'MtHoodMeadowsBase';
         });
 
-        let timberlineData = _.filter(observationsData, (o: HourlySnowDepthObservationInterface) => {
+        let timberlineData = _.filter(observationsData, (o: HourlySnowDepthObservation) => {
           return o.location === 'TimberlineLodge';
         });
 
-        let skibowlData = _.filter(observationsData, (o: HourlySnowDepthObservationInterface) => {
+        let skibowlData = _.filter(observationsData, (o: HourlySnowDepthObservation) => {
           return o.location === 'SkiBowlSummit';
         });
 

@@ -7,17 +7,22 @@ import * as _ from 'lodash';
 import convertCsvToJson from '../modules/convert-csv-to-json';
 import JsonFileCreator from '../modules/csv-to-json-file';
 import DataManager from '../modules/data-manager';
-import HourlySnowDepthObservationInterface from '../models/hourly-snow-depth-observation-interface';
+import DataUploader from '../modules/data-uploader';
+import HourlySnowDepthObservation from '../models/hourly-snow-depth-observation';
+import DailySnowDepthObservation from '../models/daily-snow-depth-observation';
 
-
-const dataManager = new DataManager();
 const jsonFileCreator = new JsonFileCreator();
+const dataManager = new DataManager();
+const dataUploader = new DataUploader();
 
 const todaysDate = moment();
 const todaysFormattedDate = todaysDate.format('YYYY-MM-DD');
-const snowDepthUrl = `http://www.nwac.us/data-portal/csv/location/mt-hood/sensortype/snow_depth/start-date/${todaysFormattedDate}/end-date/${todaysFormattedDate}/`;
-const temperatureUrl = `http://www.nwac.us/data-portal/csv/location/mt-hood/sensortype/temperature/start-date/${todaysFormattedDate}/end-date/${todaysFormattedDate}/`;
+const startDate = yargs.argv.startDate || todaysFormattedDate;
+const endDate = yargs.argv.endDate || todaysFormattedDate;
+const snowDepthUrl = `http://www.nwac.us/data-portal/csv/location/mt-hood/sensortype/snow_depth/start-date/${startDate}/end-date/${endDate}/`;
+const temperatureUrl = `http://www.nwac.us/data-portal/csv/location/mt-hood/sensortype/temperature/start-date/${startDate}/end-date/${endDate}/`;
 const jsonDest = `/Users/m28099/Sites/projects/project-snow/data/json/nwac/snow-depth`;
+const fileDest = `/Users/m28099/Sites/projects/know-your-snow/static/data/all`;
 
 export default function download(url: string, dest: string, cb: any): void {
   var file = fs.createWriteStream(dest);
@@ -25,7 +30,9 @@ export default function download(url: string, dest: string, cb: any): void {
     response.pipe(file);
 
     file.on('finish', () => {
-      file.close(cb.bind(this, null, file));  // close() is async, call cb after close completes.
+      file.close();  // close() is async, call cb after close completes.
+
+      cb.call(this, null, file);
     });
   }).on('error', (err: Error) => { // Handle errors
     fs.unlink(dest, () => {
@@ -39,62 +46,77 @@ export default function download(url: string, dest: string, cb: any): void {
   });
 };
 
-// download(temperatureUrl, `./data/csv/nwac/temperature/${todaysFormattedDate}.csv`, function () {
-//   console.log('Download temperature observations complete.');
-// });
-
 const jsonOutputDirectory = `/Users/m28099/Sites/projects/project-snow/data/json/nwac/snow-depth`;
 
 download(snowDepthUrl, `./data/csv/nwac/snow-depth/${todaysFormattedDate}.csv`, (err: Error = null, file: any) => {
   console.log('Download snow depth observations complete.');
   console.log('Converting CSV to JSON...', file.path);
 
-  convertCsvToJson(file.path).then((observationsData) => {
-    console.log('Done converting to JSON.', observationsData[0]);
+  convertCsvToJson(file.path).then((data) => {
+    // console.log('Done converting to JSON.', data);
 
-    let meadowsData = _.filter(observationsData, (o: HourlySnowDepthObservationInterface) => {
+    // let dailyData = dataManager.aggregateDailySnowDepthData(data);
+
+    let meadowsData = _.filter(data, (o: HourlySnowDepthObservation) => {
       return o.location === 'MtHoodMeadowsBase';
     });
 
-    let timberlineData = _.filter(observationsData, (o: HourlySnowDepthObservationInterface) => {
+    let timberlineData = _.filter(data, (o: HourlySnowDepthObservation) => {
       return o.location === 'TimberlineLodge';
     });
 
-    let skibowlData = _.filter(observationsData, (o: HourlySnowDepthObservationInterface) => {
+    let skibowlData = _.filter(data, (o: HourlySnowDepthObservation) => {
       return o.location === 'SkiBowlSummit';
     });
-
-    // console.log('meadowsData:', meadowsData);
-    console.log('observationsData', observationsData);
 
     let meadowsDailyObservationData = dataManager.normalizeData(meadowsData, 'MtHoodMeadowsBase');
     let timberlineDailyObservationData = dataManager.normalizeData(timberlineData, 'TimberlineLodge');
     let skiBowlDailyObservationData = dataManager.normalizeData(skibowlData, 'SkiBowlSummit');
 
-    let meadowsFileName = path.resolve(`${jsonDest}/${todaysFormattedDate}-MtHoodMeadowsBase.json`);
-    let timberlineFileName = path.resolve(`${jsonDest}/${todaysFormattedDate}-TimberlineLodge.json`);
-    let skiBowlFileName = path.resolve(`${jsonDest}/${todaysFormattedDate}-SkiBowlSummit.json`);
+    // console.log('Done aggregating date - DAILY:', dailyData);
 
-    const readyData = {
-      meadows: {
-        hourlyData: meadowsData,
-        dailyData: meadowsDailyObservationData,
-        file: meadowsFileName,
-      },
-      timberline: {
-        hourlyData: timberlineData,
-        dailyData: timberlineDailyObservationData,
-        file: timberlineFileName,
-      },
-      skiBowl: {
-        hourlyData: skibowlData,
-        dailyData: skiBowlDailyObservationData,
-        file: skiBowlFileName,
-      },
-    };
+    const mongoConnectionUrl = 'mongodb://sblue:ibmchinccd@sanderblue.com:27017,sanderblue.com:27017/snow';
+    const hourlyCollection = 'hourly_snow_depth_observations';
+    const dailyCollection = 'daily_snow_depth_observations';
 
-    _.forIn(readyData, (item, key) => {
-      jsonFileCreator.writeToFile(item.file, item.dailyData, 'utf8', () => {});
+    // dataUploader.upload(mongoConnectionUrl, hourlyCollection, data).then(() => {
+    //   console.log('Successfully uploaded HOURLY data to the database.');
+    // });
+
+    const dailyDataArray = _.concat(
+      meadowsDailyObservationData,
+      timberlineDailyObservationData,
+      skiBowlDailyObservationData
+    );
+
+    // console.log('meadowsDailyObservationData', meadowsDailyObservationData.length);
+    // console.log('timberlineDailyObservationData', timberlineDailyObservationData.length);
+    // console.log('skiBowlDailyObservationData', skiBowlDailyObservationData.length);
+    // console.log('dailyDataArray', dailyDataArray[0], dailyDataArray.length);
+
+    dataUploader.uploadMultiple(mongoConnectionUrl, [
+      {
+        collection: 'hourly_snow_depth_observations',
+        data: data
+      },
+      {
+        collection: 'daily_snow_depth_observations',
+        data: dailyDataArray
+      }
+    ]).then((results) => {
+      console.log('SUCCESS!', results);
+
+      for (let i = 0; i < results.length; i++) {
+         jsonFileCreator.writeToFile(`${fileDest}/${results[i].collection}.json`, results[i].data, 'utf8', () => {});
+      }
     });
+
+    // dataUploader.upload(mongoConnectionUrl, dailyCollection, dailyDataArray).then(() => {
+    //   console.log('Successfully uploaded DAILY data to the database.', dailyDataArray.length);
+
+    //   jsonFileCreator.writeToFile(`${fileDest}/daily_snow_depth_observations.json`, dailyDataArray, 'utf8', () => {});
+    // });
+
+    console.log('');
   });
 });
