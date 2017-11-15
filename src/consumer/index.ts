@@ -10,6 +10,8 @@ import DataManager from '../modules/data-manager';
 import DataUploader from '../modules/data-uploader';
 import HourlySnowDepthObservation from '../models/hourly-snow-depth-observation';
 import DailySnowDepthObservation from '../models/daily-snow-depth-observation';
+import downloadToFile from '../modules/download-to-file';
+import config from '../../config/config';
 
 const jsonFileCreator = new JsonFileCreator();
 const dataManager = new DataManager();
@@ -19,104 +21,93 @@ const todaysDate = moment();
 const todaysFormattedDate = todaysDate.format('YYYY-MM-DD');
 const startDate = yargs.argv.startDate || todaysFormattedDate;
 const endDate = yargs.argv.endDate || todaysFormattedDate;
+
+// NEW, but need to adjust the script to handle mountain/location names dynamically
+const snowDepthUrls = [
+  `http://www.nwac.us/data-portal/csv/location/mt-hood/sensortype/snow_depth/start-date/${startDate}/end-date/${endDate}/`,
+  `http://www.nwac.us/data-portal/csv/location/mt-baker-ski-area/sensortype/snow_depth/start-date/${startDate}/end-date/${endDate}/`,
+  `http://www.nwac.us/data-portal/csv/location/stevens-pass/sensortype/snow_depth/start-date/${startDate}/end-date/${endDate}/`,
+  `http://www.nwac.us/data-portal/csv/location/snoqualmie-pass/sensortype/snow_depth/start-date/${startDate}/end-date/${endDate}/`,
+  `http://www.nwac.us/data-portal/csv/location/crystal/sensortype/snow_depth/start-date/${startDate}/end-date/${endDate}/`,
+  `http://www.nwac.us/data-portal/csv/location/mt-rainier/sensortype/snow_depth/start-date/${startDate}/end-date/${endDate}/`,
+  `http://www.nwac.us/data-portal/csv/location/chinook-pass/sensortype/snow_depth/start-date/${startDate}/end-date/${endDate}/`,
+  `http://www.nwac.us/data-portal/csv/location/white-pass-ski-area/sensortype/snow_depth/start-date/${startDate}/end-date/${endDate}/`,
+];
+
+function getFirstWordAfterString(testString: string, lookup: string) {
+  let regex = new RegExp(lookup + /([\w\-]+)/);
+  let result = testString.match(regex);
+
+  return result ? result[1] : null;
+}
+
 const snowDepthUrl = `http://www.nwac.us/data-portal/csv/location/mt-hood/sensortype/snow_depth/start-date/${startDate}/end-date/${endDate}/`;
 const temperatureUrl = `http://www.nwac.us/data-portal/csv/location/mt-hood/sensortype/temperature/start-date/${startDate}/end-date/${endDate}/`;
 const jsonDest = `/Users/m28099/Sites/projects/project-snow/data/json/nwac/snow-depth`;
 const fileDest = `/Users/m28099/Sites/projects/know-your-snow/static/data/all`;
 
-export default function download(url: string, dest: string, cb: any): void {
-  var file = fs.createWriteStream(dest);
-  var request = http.get(url, function(response) {
-    response.pipe(file);
+downloadToFile(snowDepthUrl, `./data/csv/nwac/snow-depth/${todaysFormattedDate}.csv`)
+  .then((file: fs.WriteStream) => {
+    console.log('Download snow depth observations complete.');
 
-    file.on('finish', () => {
-      file.close();  // close() is async, call cb after close completes.
+    convertCsvToJson(file.path).then(aggregateData);
+  })
+  .catch((err: Error) => {
+    console.error('Caught error:', err.message);
+  }
+);
 
-      cb.call(this, null, file);
-    });
-  }).on('error', (err: Error) => { // Handle errors
-    fs.unlink(dest, () => {
-      console.error(err);
-      console.log('Error occurred. Deleted and unlinked file.');
-    }); // Delete the file async. (But we don't check the result)
+function aggregateData(data: any) {
+  const hourlyCollection = 'hourly_snow_depth_observations';
+  const dailyCollection = 'daily_snow_depth_observations';
+  const hourlyData = data;
+  const dailyData = dataManager.aggregateDailySnowDepthData(data);
 
-    if (cb) {
-      cb.call(this, err, file);
-    }
-  });
-};
+  Promise.all([
+    jsonFileCreator.writeToFile(`${fileDest}/${dailyCollection}.json`, dailyData, 'utf8', () => {}),
+    jsonFileCreator.writeToFile(`${fileDest}/${hourlyCollection}.json`, hourlyData, 'utf8', () => {})
+  ]).then(() => {
+    console.log('Done writing aggregated data to files.');
 
-const jsonOutputDirectory = `/Users/m28099/Sites/projects/project-snow/data/json/nwac/snow-depth`;
-
-download(snowDepthUrl, `./data/csv/nwac/snow-depth/${todaysFormattedDate}.csv`, (err: Error = null, file: any) => {
-  console.log('Download snow depth observations complete.');
-  console.log('Converting CSV to JSON...', file.path);
-
-  convertCsvToJson(file.path).then((data) => {
-    // console.log('Done converting to JSON.', data);
-
-    // let dailyData = dataManager.aggregateDailySnowDepthData(data);
-
-    let meadowsData = _.filter(data, (o: HourlySnowDepthObservation) => {
-      return o.location === 'MtHoodMeadowsBase';
-    });
-
-    let timberlineData = _.filter(data, (o: HourlySnowDepthObservation) => {
-      return o.location === 'TimberlineLodge';
-    });
-
-    let skibowlData = _.filter(data, (o: HourlySnowDepthObservation) => {
-      return o.location === 'SkiBowlSummit';
-    });
-
-    let meadowsDailyObservationData = dataManager.normalizeData(meadowsData, 'MtHoodMeadowsBase');
-    let timberlineDailyObservationData = dataManager.normalizeData(timberlineData, 'TimberlineLodge');
-    let skiBowlDailyObservationData = dataManager.normalizeData(skibowlData, 'SkiBowlSummit');
-
-    // console.log('Done aggregating date - DAILY:', dailyData);
-
-    const mongoConnectionUrl = 'mongodb://sblue:ibmchinccd@sanderblue.com:27017,sanderblue.com:27017/snow';
-    const hourlyCollection = 'hourly_snow_depth_observations';
-    const dailyCollection = 'daily_snow_depth_observations';
-
-    // dataUploader.upload(mongoConnectionUrl, hourlyCollection, data).then(() => {
-    //   console.log('Successfully uploaded HOURLY data to the database.');
-    // });
-
-    const dailyDataArray = _.concat(
-      meadowsDailyObservationData,
-      timberlineDailyObservationData,
-      skiBowlDailyObservationData
-    );
-
-    // console.log('meadowsDailyObservationData', meadowsDailyObservationData.length);
-    // console.log('timberlineDailyObservationData', timberlineDailyObservationData.length);
-    // console.log('skiBowlDailyObservationData', skiBowlDailyObservationData.length);
-    // console.log('dailyDataArray', dailyDataArray[0], dailyDataArray.length);
-
-    dataUploader.uploadMultiple(mongoConnectionUrl, [
+    dataUploader.uploadMultiple(config.db.connectionUrl, [
       {
         collection: 'hourly_snow_depth_observations',
-        data: data
+        data: hourlyData
       },
       {
         collection: 'daily_snow_depth_observations',
-        data: dailyDataArray
+        data: dailyData
       }
     ]).then((results) => {
-      console.log('SUCCESS!', results);
-
-      for (let i = 0; i < results.length; i++) {
-         jsonFileCreator.writeToFile(`${fileDest}/${results[i].collection}.json`, results[i].data, 'utf8', () => {});
-      }
+      console.log('Successfully add data to database.');
+    }).catch((err: Error) => {
+      throw err;
     });
+  }).catch((err: Error) => {
+    throw err;
+  });;
+}
 
-    // dataUploader.upload(mongoConnectionUrl, dailyCollection, dailyDataArray).then(() => {
-    //   console.log('Successfully uploaded DAILY data to the database.', dailyDataArray.length);
+// let promises = [];
 
-    //   jsonFileCreator.writeToFile(`${fileDest}/daily_snow_depth_observations.json`, dailyDataArray, 'utf8', () => {});
-    // });
+// for (let i = 0; i < snowDepthUrls.length; i++) {
+//   let location = getFirstWordAfterString(snowDepthUrls[i], 'location');
+//   let measurementType = getFirstWordAfterString(snowDepthUrls[i], 'sensortype');
+//   let downloadDestination = `./data/csv/nwac/${measurementType}/${location}-${startDate}_${endDate}.csv`;
 
-    console.log('');
-  });
-});
+//   console.log('Download destination:', downloadDestination);
+
+//   let dlPromise = download(snowDepthUrls[i], downloadDestination, (err: Error = null, file: any) => {
+//     if (err) {
+//       return console.error('ERROR', err.message);
+//     }
+
+//     console.log('Success:', file.path);
+//   });
+
+//   promises.push(dlPromise);
+// }
+
+// Promise.all(promises).then(() => {
+//   console.log('ALL DONE DOWNLOADING.');
+// });

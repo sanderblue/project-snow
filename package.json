@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "consume": "node ./dist/consumer/index.js",
+    "consume": "node ./dist/src/consumer/index.js",
     "convert": "node ./dist/index.js",
     "extract": "node ./dist/modules/extract.js",
     "build": "tsc",

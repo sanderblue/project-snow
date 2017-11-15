@@ -7,8 +7,11 @@ let count = 0;
 export default class DataManager {
   constructor() {}
 
-  public aggregateDailySnowDepthData(data: any) {
-    let aggregatedData: DailySnowDepthObservation[];
+  public extractLocationsFromData(data: Array<object>) {
+    return [...new Set(data.map((item: any) => item.location))];
+  }
+
+  public aggregateDailyValuesForLocation(data: any, location: string) {
     let groupedByDate = _.groupBy(data, 'date');
 
     // console.log('groupedByDate', groupedByDate);
@@ -24,12 +27,30 @@ export default class DataManager {
       return {
         timestamp: new Date(date).getTime(),
         date: date,
-        location: _.head(hourlyObservations).location,
+        location: location,
         elevation: _.head(groupedData).elevation,
         averageSnowDepthForDate: _.toNumber(average.toFixed(2)),
         hourlyObservations: accurateHourlyValues,
       };
     });
+  }
+
+  public aggregateDailySnowDepthData(data: Array<object>) {
+    const locations = this.extractLocationsFromData(data);
+
+    let arraysOfData: any[] = [];
+    let aggregatedData: DailySnowDepthObservation[];
+    let groupedByLocation = _.groupBy(data, 'location');
+
+    _.forIn(groupedByLocation, (locationData: Array<object>, location: string) => {
+      let dailyDataResult = this.aggregateDailyValuesForLocation(locationData, location);
+
+      // console.log('dailyDataResult', dailyDataResult);
+
+      arraysOfData.push(dailyDataResult);
+    });
+
+    return _.flatten(arraysOfData);
   }
 
   public normalizeData(

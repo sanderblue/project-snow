@@ -5,14 +5,14 @@ export default class JsonFileCreator {
 
   }
 
-  writeToFile(
+  public async writeToFile(
     path: string,
     data: any,
     encode: string = 'utf8',
     cb: () => void
-  ): void {
+  ): Promise<any> {
     const convertedData = JSON.stringify(data);
 
-    fs.writeFile(path, convertedData, encode, cb);
+    return await fs.writeFile(path, convertedData, encode, cb);
   }
 }
